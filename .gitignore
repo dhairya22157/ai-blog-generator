@@ -18,6 +18,9 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
+# Generated images
+*.png
+
 # OS files
 .DS_Store
 Thumbs.db
