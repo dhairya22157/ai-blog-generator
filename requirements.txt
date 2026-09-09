@@ -2,3 +2,5 @@ python-dotenv
 langchain-huggingface
 huggingface_hub
 langgraph
+streamlit
+pillow

@@ -8,6 +8,7 @@ from huggingface_hub import InferenceClient
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, Field
 
 
 load_dotenv()
@@ -21,6 +22,17 @@ class BlogState(TypedDict, total=False):
     needs_image: bool
     image_prompt: str
     image_path: str
+    evaluation: "BlogEvaluation"
+
+
+class BlogEvaluation(BaseModel):
+    relevance_score: int = Field(ge=1, le=10)
+    clarity_score: int = Field(ge=1, le=10)
+    structure_score: int = Field(ge=1, le=10)
+    factuality_score: int = Field(ge=1, le=10)
+    overall_score: int = Field(ge=1, le=10)
+    passed: bool
+    feedback: str
 
 
 def research_decision(state: BlogState) -> dict[str, bool]:
@@ -61,6 +73,47 @@ def generate_content(state: BlogState) -> dict[str, str]:
         prompt += f" Use this research context:\n{research}"
     response = get_chat_model(temperature=0.7).invoke(prompt)
     return {"content": getattr(response, "content", str(response))}
+
+
+def evaluate_content(state: BlogState) -> dict[str, BlogEvaluation]:
+    """Evaluate a generated blog with a separate Hugging Face model."""
+    api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+    if not api_token:
+        raise ValueError(
+            "HUGGINGFACEHUB_API_TOKEN not found. Add it to your .env file."
+        )
+
+    evaluator_endpoint = HuggingFaceEndpoint(
+        repo_id="Qwen/Qwen2.5-72B-Instruct",
+        task="text-generation",
+        temperature=0.1,
+        max_new_tokens=512,
+        huggingfacehub_api_token=api_token,
+    )
+    evaluator = ChatHuggingFace(llm=evaluator_endpoint)
+    response = evaluator.invoke(
+        f"""Evaluate this blog post and return ONLY one valid JSON object.
+
+Topic:
+{state['topic']}
+
+Research:
+{state.get('research', '')}
+
+Blog:
+{state['content']}
+
+Use integer scores from 1 to 10 for relevance_score, clarity_score,
+structure_score, factuality_score, and overall_score. Set passed to true only
+when the blog is good enough to finalize. Include specific improvement advice
+in feedback. Use exactly these JSON keys:
+relevance_score, clarity_score, structure_score, factuality_score,
+overall_score, passed, feedback"""
+    )
+
+    raw_response = getattr(response, "content", str(response)).strip()
+    evaluation_data = parse_json_object(raw_response)
+    return {"evaluation": BlogEvaluation.model_validate(evaluation_data)}
 
 
 def parse_json_object(raw_response: str) -> dict[str, object]:

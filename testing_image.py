@@ -1,36 +1,35 @@
+import urllib.request
+import urllib.parse
 import os
-from huggingface_hub import InferenceClient
-from dotenv import load_dotenv
-
-load_dotenv()
-hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-
-client = InferenceClient(token=hf_token)
 
 # Prompt crafted to visually explain self-attention without messy text artifacts
 prompt = (
-    "A simple and clean educational diagram explaining the self-attention mechanism in a Transformer. "
-    "Show the sentence 'The cat sat on the mat' as separate word boxes arranged horizontally. "
-    "Highlight the word 'sat' in the center. "
-    "Draw arrows from 'sat' to the other words, with thick bright arrows pointing to important related words "
-    "such as 'cat' and 'mat', and thin faded arrows pointing to less relevant words. "
-    "Arrow thickness visually represents attention strength. "
-    "Minimal flat vector infographic style, clean white or light background, "
-    "clear spacing, simple geometric shapes, easy to understand, professional AI education illustration, "
-    "no complex decorations, no 3D objects, no excessive glowing effects, widescreen 16:9"
+    "A clean, minimal and beautiful educational infographic diagram explaining the self-attention mechanism in Transformers. "
+    "Showing word tokens in boxes: 'The', 'cat', 'sat', 'on', 'the', 'mat' horizontally aligned. "
+    "The word 'sat' in the center is highlighted with connection lines radiating to 'cat' and 'mat' with high attention weight. "
+    "Modern flat vector illustration, high contrast, clean white background, soft cyan and indigo color palette, 16:9 widescreen"
 )
 
-print("Generating self-attention blog header...")
+def generate_image_pollinations(prompt: str, output_file: str = "self_attention_flux.png") -> str:
+    print("Generating image using Pollinations.ai (FLUX.1)...")
+    print(f"Prompt: {prompt[:90]}...")
+    
+    encoded_prompt = urllib.parse.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=576&model=flux&nologo=true&seed=42"
+    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    req = urllib.request.Request(url, headers=headers)
+    
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            data = response.read()
+            with open(output_file, "wb") as f:
+                f.write(data)
+        print(f"Success! Image generated and saved to {output_file} ({len(data)} bytes)")
+        return output_file
+    except Exception as e:
+        print(f"Failed to generate image: {e}")
+        return ""
 
-try:
-    image = client.text_to_image(
-    prompt,
-    model="black-forest-labs/FLUX.1-schnell"
-)
-    
-    filename = "self_attention_concept.jpg"
-    image.save(filename)
-    print(f"Success! Image saved as {filename}")
-    
-except Exception as e:
-    print(f"Failed to generate: {e}")
+if __name__ == "__main__":
+    generate_image_pollinations(prompt, "self_attention_flux.png")
